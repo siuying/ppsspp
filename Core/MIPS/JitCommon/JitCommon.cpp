@@ -35,6 +35,7 @@ namespace MIPSComp {
 	}
 }
 
+
 // We compile this for x86 as well because it may be useful when developing the ARM JIT on a PC.
 std::vector<std::string> DisassembleArm2(const u8 *data, int size) {
 	std::vector<std::string> lines;
@@ -76,7 +77,14 @@ std::vector<std::string> DisassembleArm2(const u8 *data, int size) {
 	return lines;
 }
 
-#ifndef ARM
+std::vector<std::string> DisassembleArm64(const u8 *data, int size) {
+	std::vector<std::string> lines;
+	// TODO ARM64
+	return lines;
+}
+
+
+#if !defined(ARM) && !defined(ARM64)
 
 const char *ppsspp_resolver(struct ud*,
 	uint64_t addr,
