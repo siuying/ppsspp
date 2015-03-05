@@ -61,14 +61,6 @@ void Arm64Jit::Comp_RType3(MIPSOpcode op) {
 	DISABLE;
 }
 
-void Arm64Jit::CompShiftImm(MIPSOpcode op, ArmGen::ShiftType shiftType, int sa) {
-	DISABLE;
-}
-
-void Arm64Jit::CompShiftVar(MIPSOpcode op, ArmGen::ShiftType shiftType) {
-	DISABLE;
-}
-
 void Arm64Jit::Comp_ShiftType(MIPSOpcode op) {
 	DISABLE;
 }

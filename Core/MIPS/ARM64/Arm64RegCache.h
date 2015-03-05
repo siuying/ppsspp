@@ -123,7 +123,6 @@ public:
 	void DiscardR(MIPSGPReg r);
 
 	Arm64Gen::ARM64Reg R(MIPSGPReg preg); // Returns a cached register, while checking that it's NOT mapped as a pointer
-	Arm64Gen::ARM64Reg RPtr(MIPSGPReg preg); // Returns a cached register, while checking that it's mapped as a pointer
 
 	void SetEmitter(Arm64Gen::ARM64XEmitter *emitter) { emit_ = emitter; }
 

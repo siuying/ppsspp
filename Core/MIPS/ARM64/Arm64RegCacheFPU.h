@@ -137,30 +137,6 @@ public:
 	// This one is allowed at any point.
 	void FlushV(MIPSReg r);
 
-	// VFPU registers mapped to match NEON quads (and doubles, for pairs and singles)
-	// Here we return the ARM register directly instead of providing a "V" accessor
-	// and so on. Might switch to this model for the other regallocs later.
-
-	// Quad mapping does NOT look into the ar array. Instead we use the qr array to keep
-	// track of what's in each quad.
-
-	// Note that we automatically spill-lock EVERY Q REGISTER we map, unlike other types.
-	// Need to explicitly allow spilling to get spilling.
-	Arm64Gen::ARM64Reg QMapReg(int vreg, VectorSize sz, int flags);
-
-	// TODO
-	// Maps a matrix as a set of columns (yes, even transposed ones, always columns
-	// as those are faster to load/flush). When possible it will map into consecutive
-	// quad registers, enabling blazing-fast full-matrix loads, transposed or not.
-	void QMapMatrix(Arm64Gen::ARM64Reg *regs, int matrix, MatrixSize mz, int flags);
-
-	Arm64Gen::ARM64Reg QAllocTemp(VectorSize sz);
-	
-	void QAllowSpill(int quad);
-	void QFlush(int quad);
-	void QLoad4x4(MIPSGPReg regPtr, int vquads[4]);
-	//void FlushQWithV(MIPSReg r);
-
 	// NOTE: These require you to release spill locks manually!
 	void MapRegsAndSpillLockV(int vec, VectorSize vsz, int flags);
 	void MapRegsAndSpillLockV(const u8 *v, VectorSize vsz, int flags);
@@ -173,17 +149,11 @@ public:
 	int GetMipsRegOffset(MIPSReg r);
 
 private:
-	bool Consecutive(int v1, int v2) const;
-	bool Consecutive(int v1, int v2, int v3) const;
-	bool Consecutive(int v1, int v2, int v3, int v4) const;
-
 	MIPSReg GetTempR();
 	const Arm64Gen::ARM64Reg *GetMIPSAllocationOrder(int &count);
 	int GetMipsRegOffsetV(MIPSReg r) {
 		return GetMipsRegOffset(r + 32);
 	}
-	// This one WILL get a free quad as long as you haven't spill-locked them all.
-	int QGetFreeQuad(int start, int count, const char *reason);
 	int GetNumARMFPURegs();
 
 	void SetupInitialRegs();

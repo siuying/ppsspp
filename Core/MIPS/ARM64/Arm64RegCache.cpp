@@ -86,40 +86,7 @@ bool Arm64RegCache::IsMapped(MIPSGPReg mipsReg) {
 }
 
 void Arm64RegCache::SetRegImm(ARM64Reg reg, u32 imm) {
-	// If we can do it with a simple Operand2, let's do that.
-	Operand2 op2;
-	bool inverse;
-	if (TryMakeOperand2_AllowInverse(imm, op2, &inverse)) {
-		if (!inverse)
-			emit_->MOV(reg, op2);
-		else
-			emit_->MVN(reg, op2);
-		return;
-	}
-
-	// Okay, so it's a bit more complex.  Let's see if we have any useful regs with imm values.
-	for (int i = 0; i < NUM_MIPSREG; i++) {
-		const auto &mreg = mr[i];
-		if (mreg.loc != ML_ARMREG_IMM)
-			continue;
-
-		if (mreg.imm - imm < 256) {
-			emit_->SUB(reg, mreg.reg, mreg.imm - imm);
-			return;
-		}
-		if (imm - mreg.imm < 256) {
-			emit_->ADD(reg, mreg.reg, imm - mreg.imm);
-			return;
-		}
-		// This could be common when using an address.
-		if ((mreg.imm & 0x3FFFFFFF) == imm) {
-			emit_->BIC(reg, mreg.reg, Operand2(0xC0, 4));   // &= 0x3FFFFFFF
-			return;
-		}
-		// TODO: All sorts of things are possible here, shifted adds, ands/ors, etc.
-	}
-
-	// No luck.  Let's go with a regular load.
+	// On ARM64, at least Cortex A57, good old MOVT/MOVW  (MOVK in 64-bit) is really fast.
 	emit_->MOVI2R(reg, imm);
 }
 
@@ -213,19 +180,6 @@ ARM64Reg Arm64RegCache::MapReg(MIPSGPReg mipsReg, int mapFlags) {
 		if (mapFlags & MAP_DIRTY) {
 			// Mapping dirty means the old imm value is invalid.
 			mr[mipsReg].loc = ML_ARMREG;
-			ar[armReg].isDirty = true;
-		}
-		return (ARM64Reg)mr[mipsReg].reg;
-	} else if (mr[mipsReg].loc == ML_ARMREG_AS_PTR) {
-		// Was mapped as pointer, now we want it mapped as a value, presumably to
-		// add or subtract stuff to it. Later we could allow such things but for now
-		// let's just convert back to a register value by reloading from the backing storage.
-		ARM64Reg armReg = mr[mipsReg].reg;
-		if ((mapFlags & MAP_NOINIT) != MAP_NOINIT) {
-			emit_->LDR(INDEX_UNSIGNED, armReg, CTXREG, GetMipsRegOffset(mipsReg));
-		}
-		mr[mipsReg].loc = ML_ARMREG;
-		if (mapFlags & MAP_DIRTY) {
 			ar[armReg].isDirty = true;
 		}
 		return (ARM64Reg)mr[mipsReg].reg;
@@ -347,7 +301,7 @@ void Arm64RegCache::FlushArmReg(ARM64Reg r) {
 			mreg.reg = INVALID_REG;
 		} else {
 			if (ar[r].isDirty && mreg.loc == ML_ARMREG)
-				emit_->STR(r, CTXREG, GetMipsRegOffset(ar[r].mipsReg));
+				emit_->STR(INDEX_UNSIGNED, r, CTXREG, GetMipsRegOffset(ar[r].mipsReg));
 			mreg.loc = ML_MEM;
 			mreg.reg = INVALID_REG;
 			mreg.imm = 0;
@@ -359,7 +313,7 @@ void Arm64RegCache::FlushArmReg(ARM64Reg r) {
 
 void Arm64RegCache::DiscardR(MIPSGPReg mipsReg) {
 	const RegMIPSLoc prevLoc = mr[mipsReg].loc;
-	if (prevLoc == ML_ARMREG || prevLoc == ML_ARMREG_AS_PTR || prevLoc == ML_ARMREG_IMM) {
+	if (prevLoc == ML_ARMREG || prevLoc == ML_ARMREG_IMM) {
 		ARM64Reg armReg = mr[mipsReg].reg;
 		ar[armReg].isDirty = false;
 		ar[armReg].mipsReg = MIPS_REG_INVALID;
@@ -375,7 +329,7 @@ void Arm64RegCache::FlushR(MIPSGPReg r) {
 		// IMM is always "dirty".
 		if (r != MIPS_REG_ZERO) {
 			SetRegImm(SCRATCHREG1, mr[r].imm);
-			emit_->STR(SCRATCHREG1, CTXREG, GetMipsRegOffset(r));
+			emit_->STR(INDEX_UNSIGNED, SCRATCHREG1, CTXREG, GetMipsRegOffset(r));
 		}
 		break;
 
@@ -386,17 +340,9 @@ void Arm64RegCache::FlushR(MIPSGPReg r) {
 		}
 		if (ar[mr[r].reg].isDirty) {
 			if (r != MIPS_REG_ZERO) {
-				emit_->STR((ARM64Reg)mr[r].reg, CTXREG, GetMipsRegOffset(r));
+				emit_->STR(INDEX_UNSIGNED, (ARM64Reg)mr[r].reg, CTXREG, GetMipsRegOffset(r));
 			}
 			ar[mr[r].reg].isDirty = false;
-		}
-		ar[mr[r].reg].mipsReg = MIPS_REG_INVALID;
-		break;
-
-	case ML_ARMREG_AS_PTR:
-		// Never dirty.
-		if (ar[mr[r].reg].isDirty) {
-			ERROR_LOG_REPORT(JIT, "ARMREG_AS_PTR cannot be dirty (yet)");
 		}
 		ar[mr[r].reg].mipsReg = MIPS_REG_INVALID;
 		break;
@@ -590,13 +536,3 @@ ARM64Reg Arm64RegCache::R(MIPSGPReg mipsReg) {
 		return INVALID_REG;  // BAAAD
 	}
 }
-
-ARM64Reg Arm64RegCache::RPtr(MIPSGPReg mipsReg) {
-	if (mr[mipsReg].loc == ML_ARMREG_AS_PTR) {
-		return (ARM64Reg)mr[mipsReg].reg;
-	} else {
-		ERROR_LOG_REPORT(JIT, "Reg %i not in arm reg as pointer. compilerPC = %08x", mipsReg, compilerPC_);
-		return INVALID_REG;  // BAAAD
-	}
-}
-

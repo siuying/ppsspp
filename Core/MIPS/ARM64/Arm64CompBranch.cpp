@@ -26,11 +26,11 @@
 #include "Core/MIPS/MIPSAnalyst.h"
 #include "Core/MIPS/MIPSTables.h"
 
-#include "Core/MIPS/ARM/ArmJit.h"
-#include "Core/MIPS/ARM/ArmRegCache.h"
+#include "Core/MIPS/ARM64/Arm64Jit.h"
+#include "Core/MIPS/ARM64/Arm64RegCache.h"
 #include "Core/MIPS/JitCommon/JitBlockCache.h"
 
-#include "Common/ArmEmitter.h"
+#include "Common/Arm64Emitter.h"
 
 #define _RS MIPS_GET_RS(op)
 #define _RT MIPS_GET_RT(op)
@@ -54,8 +54,8 @@ using namespace MIPSAnalyst;
 
 namespace MIPSComp
 {
-	using namespace ArmGen;
-	using namespace ArmJitConstants;
+	using namespace Arm64Gen;
+	using namespace Arm64JitConstants;
 
 void Arm64Jit::BranchRSRTComp(MIPSOpcode op, CCFlags cc, bool likely)
 {
@@ -124,26 +124,9 @@ void Arm64Jit::BranchRSRTComp(MIPSOpcode op, CCFlags cc, bool likely)
 		// We might be able to flip the condition (EQ/NEQ are easy.)
 		const bool canFlip = cc == CC_EQ || cc == CC_NEQ;
 
-		Operand2 op2;
-		bool negated;
-		if (gpr.IsImm(rt) && TryMakeOperand2_AllowNegation(gpr.GetImm(rt), op2, &negated)) {
-			gpr.MapReg(rs);
-			if (!negated)
-				CMP(gpr.R(rs), op2);
-			else
-				CMN(gpr.R(rs), op2);
-		} else {
-			if (gpr.IsImm(rs) && TryMakeOperand2_AllowNegation(gpr.GetImm(rs), op2, &negated) && canFlip) {
-				gpr.MapReg(rt);
-				if (!negated)
-					CMP(gpr.R(rt), op2);
-				else
-					CMN(gpr.R(rt), op2);
-			} else {
-				gpr.MapInIn(rs, rt);
-				CMP(gpr.R(rs), gpr.R(rt));
-			}
-		}
+		// TODO ARM64: Optimize for immediates
+		gpr.MapInIn(rs, rt);
+		CMP(gpr.R(rs), gpr.R(rt));
 
 		ArmGen::FixupBranch ptr;
 		if (!likely) {
@@ -151,10 +134,10 @@ void Arm64Jit::BranchRSRTComp(MIPSOpcode op, CCFlags cc, bool likely)
 				CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
 			else
 				FlushAll();
-			ptr = B_CC(cc);
+			ptr = B(cc);
 		} else {
 			FlushAll();
-			ptr = B_CC(cc);
+			ptr = B(cc);
 			CompileDelaySlot(DELAYSLOT_FLUSH);
 		}
 
@@ -249,12 +232,12 @@ void Arm64Jit::BranchRSZeroComp(MIPSOpcode op, CCFlags cc, bool andLink, bool li
 				CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
 			else
 				FlushAll();
-			ptr = B_CC(cc);
+			ptr = B(cc);
 		}
 		else
 		{
 			FlushAll();
-			ptr = B_CC(cc);
+			ptr = B(cc);
 			CompileDelaySlot(DELAYSLOT_FLUSH);
 		}
 
@@ -317,8 +300,7 @@ void Arm64Jit::Comp_RelBranchRI(MIPSOpcode op)
 }
 
 // If likely is set, discard the branch slot if NOT taken.
-void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely)
-{
+void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely) {
 	if (js.inDelaySlot) {
 		ERROR_LOG_REPORT(JIT, "Branch in FPFlag delay slot at %08x in block starting at %08x", js.compilerPC, js.blockStart);
 		return;
@@ -336,18 +318,15 @@ void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely)
 	TST(gpr.R(MIPS_REG_FPCOND), Operand2(1, TYPE_IMM));
 
 	ArmGen::FixupBranch ptr;
-	if (!likely)
-	{
+	if (!likely) {
 		if (!delaySlotIsNice)
 			CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
 		else
 			FlushAll();
-		ptr = B_CC(cc);
-	}
-	else
-	{
+		ptr = B(cc);
+	} else {
 		FlushAll();
-		ptr = B_CC(cc);
+		ptr = B(cc);
 		CompileDelaySlot(DELAYSLOT_FLUSH);
 	}
 
@@ -360,10 +339,8 @@ void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely)
 	js.compiling = false;
 }
 
-void Arm64Jit::Comp_FPUBranch(MIPSOpcode op)
-{
-	switch((op >> 16) & 0x1f)
-	{
+void Arm64Jit::Comp_FPUBranch(MIPSOpcode op) {
+	switch((op >> 16) & 0x1f) {
 	case 0:	BranchFPFlag(op, CC_NEQ, false); break;  // bc1f
 	case 1: BranchFPFlag(op, CC_EQ,  false); break;  // bc1t
 	case 2: BranchFPFlag(op, CC_NEQ, true);  break;  // bc1fl
@@ -375,8 +352,7 @@ void Arm64Jit::Comp_FPUBranch(MIPSOpcode op)
 }
 
 // If likely is set, discard the branch slot if NOT taken.
-void Arm64Jit::BranchVFPUFlag(MIPSOpcode op, CCFlags cc, bool likely)
-{
+void Arm64Jit::BranchVFPUFlag(MIPSOpcode op, CCFlags cc, bool likely) {
 	if (js.inDelaySlot) {
 		ERROR_LOG_REPORT(JIT, "Branch in VFPU delay slot at %08x in block starting at %08x", js.compilerPC, js.blockStart);
 		return;
@@ -410,12 +386,12 @@ void Arm64Jit::BranchVFPUFlag(MIPSOpcode op, CCFlags cc, bool likely)
 			CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
 		else
 			FlushAll();
-		ptr = B_CC(cc);
+		ptr = B(cc);
 	}
 	else
 	{
 		FlushAll();
-		ptr = B_CC(cc);
+		ptr = B(cc);
 		if (!delaySlotIsBranch)
 			CompileDelaySlot(DELAYSLOT_FLUSH);
 	}
@@ -517,7 +493,7 @@ void Arm64Jit::Comp_JumpReg(MIPSOpcode op)
 		delaySlotIsNice = false;
 	CONDITIONAL_NICE_DELAYSLOT;
 
-	ARMReg destReg = R8;
+	ARM64Reg destReg = X8;
 	if (IsSyscall(delaySlotOp)) {
 		gpr.MapReg(rs);
 		MovToPC(gpr.R(rs));  // For syscall to be able to return.
