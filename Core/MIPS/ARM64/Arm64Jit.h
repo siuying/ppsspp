@@ -34,9 +34,9 @@
 namespace MIPSComp
 {
 
-struct ArmJitOptions
+struct Arm64JitOptions
 {
-	ArmJitOptions()  {
+	Arm64JitOptions()  {
 		enableBlocklink = true;
 		downcountInRegister = true;
 		useBackJump = false;
@@ -262,7 +262,7 @@ private:
 	void Comp_ITypeMemLR(MIPSOpcode op, bool load);
 
 	JitBlockCache blocks;
-	ArmJitOptions jo;
+	Arm64JitOptions jo;
 	JitState js;
 
 	Arm64RegCache gpr;

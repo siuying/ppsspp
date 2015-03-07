@@ -40,7 +40,7 @@
 
 using namespace Arm64JitConstants;
 
-void DisassembleArm64(const u8 *data, int size) {
+void DisassembleArm64Print(const u8 *data, int size) {
 	ILOG("ARM64 TODO");
 }
 
@@ -105,19 +105,19 @@ void Arm64Jit::FlushPrefixV()
 {
 	if ((js.prefixSFlag & JitState::PREFIX_DIRTY) != 0) {
 		gpr.SetRegImm(SCRATCHREG1, js.prefixS);
-		STR(SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_SPREFIX]));
+		STR(INDEX_UNSIGNED, SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_SPREFIX]));
 		js.prefixSFlag = (JitState::PrefixState) (js.prefixSFlag & ~JitState::PREFIX_DIRTY);
 	}
 
 	if ((js.prefixTFlag & JitState::PREFIX_DIRTY) != 0) {
 		gpr.SetRegImm(SCRATCHREG1, js.prefixT);
-		STR(SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_TPREFIX]));
+		STR(INDEX_UNSIGNED, SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_TPREFIX]));
 		js.prefixTFlag = (JitState::PrefixState) (js.prefixTFlag & ~JitState::PREFIX_DIRTY);
 	}
 
 	if ((js.prefixDFlag & JitState::PREFIX_DIRTY) != 0) {
 		gpr.SetRegImm(SCRATCHREG1, js.prefixD);
-		STR(SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_DPREFIX]));
+		STR(INDEX_UNSIGNED, SCRATCHREG1, CTXREG, offsetof(MIPSState, vfpuCtrl[VFPU_CTRL_DPREFIX]));
 		js.prefixDFlag = (JitState::PrefixState) (js.prefixDFlag & ~JitState::PREFIX_DIRTY);
 	}
 }
@@ -299,7 +299,7 @@ const u8 *Arm64Jit::DoJit(u32 em_address, JitBlock *b)
 
 	if (logBlocks > 0 && dontLogBlocks == 0) {
 		INFO_LOG(JIT, "=============== ARM ===============");
-		DisassembleArm64(b->normalEntry, GetCodePtr() - b->normalEntry);
+		DisassembleArm64Print(b->normalEntry, GetCodePtr() - b->normalEntry);
 	}
 	if (logBlocks > 0)
 		logBlocks--;

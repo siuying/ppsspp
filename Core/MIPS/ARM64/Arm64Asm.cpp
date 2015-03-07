@@ -80,7 +80,6 @@ void Arm64Jit::GenerateFixedCode()
 	// INFO_LOG(JIT, "END OF THE DISASM ========================");
 
 	// Don't forget to zap the instruction cache!
-	FlushLitPool();
 	FlushIcache();
 }
 

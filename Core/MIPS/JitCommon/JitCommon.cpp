@@ -23,10 +23,13 @@
 
 #include "ext/disarm.h"
 #include "ext/udis86/udis86.h"
+#include "Core/Util/DisArm64.h"
 
 namespace MIPSComp {
 #if defined(ARM)
 	ArmJit *jit;
+#elif defined(ARM64)
+	Arm64Jit *jit;
 #else
 	Jit *jit;
 #endif
@@ -35,7 +38,7 @@ namespace MIPSComp {
 	}
 }
 
-
+#if !defined(ARM64)
 // We compile this for x86 as well because it may be useful when developing the ARM JIT on a PC.
 std::vector<std::string> DisassembleArm2(const u8 *data, int size) {
 	std::vector<std::string> lines;
@@ -76,13 +79,35 @@ std::vector<std::string> DisassembleArm2(const u8 *data, int size) {
 	}
 	return lines;
 }
+#endif
 
+#if !defined(ARM)
 std::vector<std::string> DisassembleArm64(const u8 *data, int size) {
 	std::vector<std::string> lines;
-	// TODO ARM64
+
+	char temp[256];
+	int bkpt_count = 0;
+	for (int i = 0; i < size; i += 4) {
+		const u32 *codePtr = (const u32 *)(data + i);
+		u32 inst = codePtr[0];
+		Arm64Dis((u32)(intptr_t)codePtr, inst, temp, sizeof(temp), false);
+		std::string buf = temp;
+		if (buf == "BKPT 1") {
+			bkpt_count++;
+		} else {
+			if (bkpt_count) {
+				lines.push_back(StringFromFormat("BKPT 1 (x%i)", bkpt_count));
+				bkpt_count = 0;
+			}
+			lines.push_back(buf);
+		}
+	}
+	if (bkpt_count) {
+		lines.push_back(StringFromFormat("BKPT 1 (x%i)", bkpt_count));
+	}
 	return lines;
 }
-
+#endif
 
 #if !defined(ARM) && !defined(ARM64)
 

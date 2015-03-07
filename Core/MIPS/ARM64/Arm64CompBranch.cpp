@@ -128,7 +128,7 @@ void Arm64Jit::BranchRSRTComp(MIPSOpcode op, CCFlags cc, bool likely)
 		gpr.MapInIn(rs, rt);
 		CMP(gpr.R(rs), gpr.R(rt));
 
-		ArmGen::FixupBranch ptr;
+		Arm64Gen::FixupBranch ptr;
 		if (!likely) {
 			if (!delaySlotIsNice)
 				CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
@@ -225,7 +225,7 @@ void Arm64Jit::BranchRSZeroComp(MIPSOpcode op, CCFlags cc, bool andLink, bool li
 		gpr.MapReg(rs);
 		CMP(gpr.R(rs), 0);
 
-		ArmGen::FixupBranch ptr;
+		Arm64Gen::FixupBranch ptr;
 		if (!likely)
 		{
 			if (!delaySlotIsNice)
@@ -315,9 +315,9 @@ void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely) {
 		CompileDelaySlot(DELAYSLOT_NICE);
 
 	gpr.MapReg(MIPS_REG_FPCOND);
-	TST(gpr.R(MIPS_REG_FPCOND), Operand2(1, TYPE_IMM));
+	TSTI2R(gpr.R(MIPS_REG_FPCOND), 1, W0);
 
-	ArmGen::FixupBranch ptr;
+	Arm64Gen::FixupBranch ptr;
 	if (!likely) {
 		if (!delaySlotIsNice)
 			CompileDelaySlot(DELAYSLOT_SAFE_FLUSH);
@@ -342,9 +342,9 @@ void Arm64Jit::BranchFPFlag(MIPSOpcode op, CCFlags cc, bool likely) {
 void Arm64Jit::Comp_FPUBranch(MIPSOpcode op) {
 	switch((op >> 16) & 0x1f) {
 	case 0:	BranchFPFlag(op, CC_NEQ, false); break;  // bc1f
-	case 1: BranchFPFlag(op, CC_EQ,  false); break;  // bc1t
+	case 1: BranchFPFlag(op, CC_EQ, false); break;  // bc1t
 	case 2: BranchFPFlag(op, CC_NEQ, true);  break;  // bc1fl
-	case 3: BranchFPFlag(op, CC_EQ,  true);  break;  // bc1tl
+	case 3: BranchFPFlag(op, CC_EQ, true);  break;  // bc1tl
 	default:
 		_dbg_assert_msg_(CPU,0,"Trying to interpret instruction that can't be interpreted");
 		break;
@@ -376,9 +376,9 @@ void Arm64Jit::BranchVFPUFlag(MIPSOpcode op, CCFlags cc, bool likely) {
 	int imm3 = (op >> 18) & 7;
 
 	gpr.MapReg(MIPS_REG_VFPUCC);
-	TST(gpr.R(MIPS_REG_VFPUCC), Operand2(1 << imm3, TYPE_IMM));
+	TSTI2R(gpr.R(MIPS_REG_VFPUCC), 1 << imm3, W0);
 
-	ArmGen::FixupBranch ptr;
+	Arm64Gen::FixupBranch ptr;
 	js.inDelaySlot = true;
 	if (!likely)
 	{
@@ -533,7 +533,7 @@ void Arm64Jit::Comp_JumpReg(MIPSOpcode op)
 	} else {
 		// Delay slot - this case is very rare, might be able to free up R8.
 		gpr.MapReg(rs);
-		MOV(R8, gpr.R(rs));
+		MOV(W8, gpr.R(rs));
 		if (andLink)
 			gpr.SetImm(rd, js.compilerPC + 8);
 		CompileDelaySlot(DELAYSLOT_NICE);
@@ -588,14 +588,14 @@ void Arm64Jit::Comp_Syscall(MIPSOpcode op)
 	void *quickFunc = GetQuickSyscallFunc(op);
 	if (quickFunc)
 	{
-		gpr.SetRegImm(R0, (u32)(intptr_t)GetSyscallInfo(op));
-		// Already flushed, so R1 is safe.
-		QuickCallFunction(R1, quickFunc);
+		gpr.SetRegImm(W0, (u32)(intptr_t)GetSyscallInfo(op));
+		// Already flushed, so X1 is safe.
+		QuickCallFunction(X1, quickFunc);
 	}
 	else
 	{
-		gpr.SetRegImm(R0, op.encoding);
-		QuickCallFunction(R1, (void *)&CallSyscall);
+		gpr.SetRegImm(W0, op.encoding);
+		QuickCallFunction(X1, (void *)&CallSyscall);
 	}
 	ApplyRoundingMode();
 	RestoreDowncount();

@@ -579,7 +579,7 @@ public:
 #ifdef ARM
 class VertexDecoderJitCache : public ArmGen::ARMXCodeBlock {
 #elif defined(ARM64)
-class VertexDecoderJitCache : public ArmGen::ARM64CodeBlock {
+class VertexDecoderJitCache : public Arm64Gen::ARM64CodeBlock {
 #elif defined(_M_IX86) || defined(_M_X64)
 class VertexDecoderJitCache : public Gen::XCodeBlock {
 #elif defined(MIPS)

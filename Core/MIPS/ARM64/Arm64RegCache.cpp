@@ -29,7 +29,7 @@
 using namespace Arm64Gen;
 using namespace Arm64JitConstants;
 
-Arm64RegCache::Arm64RegCache(MIPSState *mips, MIPSComp::JitState *js, MIPSComp::ArmJitOptions *jo) : mips_(mips), js_(js), jo_(jo) {
+Arm64RegCache::Arm64RegCache(MIPSState *mips, MIPSComp::JitState *js, MIPSComp::Arm64JitOptions *jo) : mips_(mips), js_(js), jo_(jo) {
 }
 
 void Arm64RegCache::Init(ARM64XEmitter *emitter) {
@@ -97,7 +97,7 @@ void Arm64RegCache::MapRegTo(ARM64Reg reg, MIPSGPReg mipsReg, int mapFlags) {
 			// If we get a request to load the zero register, at least we won't spend
 			// time on a memory access...
 			// TODO: EOR?
-			emit_->MOV(reg, 0);
+			emit_->MOVI2R(reg, 0);
 
 			// This way, if we SetImm() it, we'll keep it.
 			mr[mipsReg].loc = ML_ARMREG_IMM;
@@ -413,47 +413,12 @@ int Arm64RegCache::FlushGetSequential(MIPSGPReg startMipsReg, bool allowFlushImm
 }
 
 void Arm64RegCache::FlushAll() {
-	// ADD + STMIA is probably better than STR + STR, so let's merge 2 into a STMIA.
-	const int minSequential = 2;
-
-	// Let's try to put things in order and use STMIA.
-	// First we have to save imms.  We have to use a separate loop because otherwise
-	// we would overwrite existing regs, and other code assumes FlushAll() won't do that.
+	// TODO: Flush in pairs
 	for (int i = 0; i < NUM_MIPSREG; i++) {
 		MIPSGPReg mipsReg = MIPSGPReg(i);
-
-		// This happens to also flush imms to regs as much as possible.
-		int c = FlushGetSequential(mipsReg, true);
-		if (c >= minSequential) {
-			// Skip the next c (adjust down 1 because the loop increments.)
-			i += c - 1;
-		}
+		FlushR(mipsReg);
 	}
 
-	// Okay, now the real deal: this time NOT flushing imms.
-	for (int i = 0; i < NUM_MIPSREG; i++) {
-		MIPSGPReg mipsReg = MIPSGPReg(i);
-
-		int c = FlushGetSequential(mipsReg, false);
-		if (c >= minSequential) {
-			u16 regs = 0;
-			for (int j = 0; j < c; ++j) {
-				regs |= 1 << mr[i + j].reg;
-			}
-
-			emit_->ADD(SCRATCHREG1, CTXREG, GetMipsRegOffset(mipsReg));
-			emit_->STMBitmask(SCRATCHREG1, true, false, false, regs);
-
-			// Okay, those are all done now, discard them.
-			for (int j = 0; j < c; ++j) {
-				DiscardR(MIPSGPReg(i + j));
-			}
-			// Skip the next c (adjust down 1 because the loop increments.)
-			i += c - 1;
-		} else {
-			FlushR(mipsReg);
-		}
-	}
 	// Sanity check
 	for (int i = 0; i < NUM_ARMREG; i++) {
 		if (ar[i].mipsReg != MIPS_REG_INVALID) {

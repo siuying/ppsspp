@@ -71,6 +71,7 @@ ARCH_FILES := \
   $(SRC)/Core/MIPS/ARM/ArmRegCache.cpp \
   $(SRC)/Core/MIPS/ARM/ArmRegCacheFPU.cpp \
   $(SRC)/GPU/Common/VertexDecoderArm.cpp \
+  $(SRC)/ext/disarm.cpp \
   ArmEmitterTest.cpp
 endif
 
@@ -90,6 +91,7 @@ ARCH_FILES := \
   $(SRC)/Core/MIPS/ARM64/Arm64Jit.cpp \
   $(SRC)/Core/MIPS/ARM64/Arm64RegCache.cpp \
   $(SRC)/Core/MIPS/ARM64/Arm64RegCacheFPU.cpp \
+  $(SRC)/Core/Util/DisArm64.cpp \
   $(SRC)/GPU/Common/VertexDecoderArm64.cpp
 endif
 
@@ -130,7 +132,6 @@ EXEC_AND_LIB_FILES := \
   $(SRC)/Core/MIPS/MIPSDebugInterface.cpp \
   $(SRC)/UI/ui_atlas.cpp \
   $(SRC)/UI/OnScreenDisplay.cpp \
-  $(SRC)/ext/disarm.cpp \
   $(SRC)/ext/libkirk/AES.c \
   $(SRC)/ext/libkirk/amctrl.c \
   $(SRC)/ext/libkirk/SHA1.c \

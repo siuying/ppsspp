@@ -46,15 +46,13 @@
 
 namespace MIPSComp
 {
-	using namespace ArmGen;
-	using namespace ArmJitConstants;
+	using namespace Arm64Gen;
+	using namespace Arm64JitConstants;
 
 void Arm64Jit::Comp_FPU3op(MIPSOpcode op)
 { 
 	DISABLE;
 }
-
-extern int logBlocks;
 
 void Arm64Jit::Comp_FPULS(MIPSOpcode op)
 {

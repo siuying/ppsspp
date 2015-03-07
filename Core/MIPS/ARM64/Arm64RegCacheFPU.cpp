@@ -27,7 +27,7 @@
 using namespace Arm64Gen;
 using namespace Arm64JitConstants;
 
-ArmRegCacheFPU::ArmRegCacheFPU(MIPSState *mips, MIPSComp::JitState *js, MIPSComp::ArmJitOptions *jo) : mips_(mips), vr(mr + 32), js_(js), jo_(jo), initialReady(false) {
+ArmRegCacheFPU::ArmRegCacheFPU(MIPSState *mips, MIPSComp::JitState *js, MIPSComp::Arm64JitOptions *jo) : mips_(mips), vr(mr + 32), js_(js), jo_(jo), initialReady(false) {
 	if (cpu_info.bNEON) {
 		numARMFpuReg_ = 32;
 	} else {
@@ -68,14 +68,6 @@ void ArmRegCacheFPU::SetupInitialRegs() {
 }
 
 const ARM64Reg *ArmRegCacheFPU::GetMIPSAllocationOrder(int &count) {
-	// We reserve S0-S1 as scratch. Can afford two registers. Maybe even four, which could simplify some things.
-	static const ARM64Reg allocationOrder[] = {
-		          S2,  S3,
-		S4,  S5,  S6,  S7,
-		S8,  S9,  S10, S11,
-		S12, S13, S14, S15
-	};
-
 	// VFP mapping
 	// VFPU registers and regular FP registers are mapped interchangably on top of the standard
 	// 16 FPU registers.
@@ -89,7 +81,7 @@ const ARM64Reg *ArmRegCacheFPU::GetMIPSAllocationOrder(int &count) {
 	// We should attempt to map scalars to low Q registers and wider things to high registers,
 	// as the NEON instructions are all 2-vector or 4-vector, they don't do scalar, we want to be
 	// able to use regular VFP instructions too.
-	static const ARM64Reg allocationOrderNEON[] = {
+	static const ARM64Reg allocationOrder[] = {
 		// Reserve four temp registers. Useful when building quads until we really figure out
 		// how to do that best.
 		S4,  S5,  S6,  S7,   // Q1
@@ -116,9 +108,6 @@ const ARM64Reg *ArmRegCacheFPU::GetMIPSAllocationOrder(int &count) {
 	if (jo_->useNEONVFPU) {
 		count = sizeof(allocationOrderNEONVFPU) / sizeof(const ARM64Reg);
 		return allocationOrderNEONVFPU;
-	} else if (cpu_info.bNEON) {
-		count = sizeof(allocationOrderNEON) / sizeof(const ARM64Reg);
-		return allocationOrderNEON;
 	} else {
 		count = sizeof(allocationOrder) / sizeof(const ARM64Reg);
 		return allocationOrder;
@@ -321,45 +310,12 @@ void ArmRegCacheFPU::FlushArmReg(ARM64Reg r) {
 		}
 		ar[reg].isDirty = false;
 		ar[reg].mipsReg = -1;
-	} else if (r >= D0 && r <= D31) {
-		// TODO: Convert to S regs and flush them individually.
-	} else if (r >= Q0 && r <= Q15) {
-		int quad = r - Q0;
-		QFlush(r);
 	}
 }
 
 void ArmRegCacheFPU::FlushV(MIPSReg r) {
 	FlushR(r + 32);
 }
-
-/*
-void ArmRegCacheFPU::FlushQWithV(MIPSReg r) {
-	// Look for it in all the quads. If it's in any, flush that quad clean.
-	int flushCount = 0;
-	for (int i = 0; i < MAX_ARMQUADS; i++) {
-		if (qr[i].sz == V_Invalid)
-			continue;
-
-		int n = qr[i].sz;
-		bool flushThis = false;
-		for (int j = 0; j < n; j++) {
-			if (qr[i].vregs[j] == r) {
-				flushThis = true;
-			}
-		}
-
-		if (flushThis) {
-			QFlush(i);
-			flushCount++;
-		}
-	}
-
-	if (flushCount > 1) {
-		WARN_LOG(JIT, "ERROR: More than one quad was flushed to flush reg %i", r);
-	}
-}
-*/
 
 void ArmRegCacheFPU::FlushR(MIPSReg r) {
 	switch (mr[r].loc) {
@@ -441,12 +397,6 @@ void ArmRegCacheFPU::FlushAll() {
 	// Discard temps!
 	for (int i = TEMP0; i < TEMP0 + NUM_TEMPS; i++) {
 		DiscardR(i);
-	}
-
-	// Flush quads!
-	// These could also use sequential detection.
-	for (int i = 4; i < MAX_ARMQUADS; i++) {
-		QFlush(i);
 	}
 
 	// Loop through the ARM registers, then use GetMipsRegOffset to determine if MIPS registers are
