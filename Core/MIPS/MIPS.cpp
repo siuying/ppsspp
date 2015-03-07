@@ -220,6 +220,8 @@ void MIPSState::Init() {
 #else
 			MIPSComp::jit = new MIPSComp::FakeJit(this);
 #endif
+	} else {
+		MIPSComp::jit = nullptr;
 	}
 }
 
